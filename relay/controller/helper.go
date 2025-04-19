@@ -8,22 +8,22 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/songquanpeng/one-api/common/helper"
-	"github.com/songquanpeng/one-api/relay/constant/role"
+	"github.com/LeXwDeX/one-api/common/helper"
+	"github.com/LeXwDeX/one-api/relay/constant/role"
 
 	"github.com/gin-gonic/gin"
 
-	"github.com/songquanpeng/one-api/common"
-	"github.com/songquanpeng/one-api/common/config"
-	"github.com/songquanpeng/one-api/common/logger"
-	"github.com/songquanpeng/one-api/model"
-	"github.com/songquanpeng/one-api/relay/adaptor/openai"
-	billingratio "github.com/songquanpeng/one-api/relay/billing/ratio"
-	"github.com/songquanpeng/one-api/relay/channeltype"
-	"github.com/songquanpeng/one-api/relay/controller/validator"
-	"github.com/songquanpeng/one-api/relay/meta"
-	relaymodel "github.com/songquanpeng/one-api/relay/model"
-	"github.com/songquanpeng/one-api/relay/relaymode"
+	"github.com/LeXwDeX/one-api/common"
+	"github.com/LeXwDeX/one-api/common/config"
+	"github.com/LeXwDeX/one-api/common/logger"
+	"github.com/LeXwDeX/one-api/model"
+	"github.com/LeXwDeX/one-api/relay/adaptor/openai"
+	billingratio "github.com/LeXwDeX/one-api/relay/billing/ratio"
+	"github.com/LeXwDeX/one-api/relay/channeltype"
+	"github.com/LeXwDeX/one-api/relay/controller/validator"
+	"github.com/LeXwDeX/one-api/relay/meta"
+	relaymodel "github.com/LeXwDeX/one-api/relay/model"
+	"github.com/LeXwDeX/one-api/relay/relaymode"
 )
 
 func getAndValidateTextRequest(c *gin.Context, relayMode int) (*relaymodel.GeneralOpenAIRequest, error) {

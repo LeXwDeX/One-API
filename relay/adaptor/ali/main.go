@@ -3,18 +3,18 @@ package ali
 import (
 	"bufio"
 	"encoding/json"
-	"github.com/songquanpeng/one-api/common/ctxkey"
-	"github.com/songquanpeng/one-api/common/render"
+	"github.com/LeXwDeX/one-api/common/ctxkey"
+	"github.com/LeXwDeX/one-api/common/render"
 	"io"
 	"net/http"
 	"strings"
 
 	"github.com/gin-gonic/gin"
-	"github.com/songquanpeng/one-api/common"
-	"github.com/songquanpeng/one-api/common/helper"
-	"github.com/songquanpeng/one-api/common/logger"
-	"github.com/songquanpeng/one-api/relay/adaptor/openai"
-	"github.com/songquanpeng/one-api/relay/model"
+	"github.com/LeXwDeX/one-api/common"
+	"github.com/LeXwDeX/one-api/common/helper"
+	"github.com/LeXwDeX/one-api/common/logger"
+	"github.com/LeXwDeX/one-api/relay/adaptor/openai"
+	"github.com/LeXwDeX/one-api/relay/model"
 )
 
 // https://help.aliyun.com/document_detail/613695.html?spm=a2c4g.2399480.0.0.1adb778fAdzP9w#341800c0f8w0r

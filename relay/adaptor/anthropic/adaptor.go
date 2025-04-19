@@ -8,9 +8,9 @@ import (
 	"strings"
 
 	"github.com/gin-gonic/gin"
-	"github.com/songquanpeng/one-api/relay/adaptor"
-	"github.com/songquanpeng/one-api/relay/meta"
-	"github.com/songquanpeng/one-api/relay/model"
+	"github.com/LeXwDeX/one-api/relay/adaptor"
+	"github.com/LeXwDeX/one-api/relay/meta"
+	"github.com/LeXwDeX/one-api/relay/model"
 )
 
 type Adaptor struct {

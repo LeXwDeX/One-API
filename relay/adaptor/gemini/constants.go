@@ -1,7 +1,7 @@
 package gemini
 
 import (
-	"github.com/songquanpeng/one-api/relay/adaptor/geminiv2"
+	"github.com/LeXwDeX/one-api/relay/adaptor/geminiv2"
 )
 
 // https://ai.google.dev/models/gemini

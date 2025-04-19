@@ -6,7 +6,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/songquanpeng/one-api/common/logger"
+	"github.com/LeXwDeX/one-api/common/logger"
 )
 
 const (
@@ -60,6 +60,9 @@ var ModelRatio = map[string]float64{
 	"o1-mini":                 1.5, // $3.00 / 1M input tokens
 	"o1-mini-2024-09-12":      1.5,
 	"o3-mini":                 1.5, // $3.00 / 1M input tokens
+	"o3":                      1.0,
+	"o4-mini":                 0.075,
+	"gpt4.1":                  1.0,
 	"o3-mini-2025-01-31":      1.5,
 	"davinci-002":             1,   // $0.002 / 1K tokens
 	"babbage-002":             0.2, // $0.0004 / 1K tokens

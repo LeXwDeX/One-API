@@ -9,17 +9,18 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"github.com/songquanpeng/one-api/relay/adaptor"
-	"github.com/songquanpeng/one-api/relay/adaptor/alibailian"
-	"github.com/songquanpeng/one-api/relay/adaptor/baiduv2"
-	"github.com/songquanpeng/one-api/relay/adaptor/doubao"
-	"github.com/songquanpeng/one-api/relay/adaptor/geminiv2"
-	"github.com/songquanpeng/one-api/relay/adaptor/minimax"
-	"github.com/songquanpeng/one-api/relay/adaptor/novita"
-	"github.com/songquanpeng/one-api/relay/channeltype"
-	"github.com/songquanpeng/one-api/relay/meta"
-	"github.com/songquanpeng/one-api/relay/model"
-	"github.com/songquanpeng/one-api/relay/relaymode"
+	"github.com/LeXwDeX/one-api/relay/adaptor"
+	"github.com/LeXwDeX/one-api/relay/adaptor/alibailian"
+	"github.com/LeXwDeX/one-api/relay/adaptor/baiduv2"
+	"github.com/LeXwDeX/one-api/relay/adaptor/doubao"
+	"github.com/LeXwDeX/one-api/relay/adaptor/geminiv2"
+	"github.com/LeXwDeX/one-api/relay/adaptor/minimax"
+	"github.com/LeXwDeX/one-api/relay/adaptor/novita"
+	"github.com/LeXwDeX/one-api/relay/channeltype"
+	"github.com/LeXwDeX/one-api/relay/meta"
+	"github.com/LeXwDeX/one-api/relay/model"
+	"github.com/LeXwDeX/one-api/relay/relaymode"
+	"github.com/LeXwDeX/one-api/common/logger"
 )
 
 type Adaptor struct {
@@ -45,8 +46,8 @@ func (a *Adaptor) GetRequestURL(meta *meta.Meta) (string, error) {
 		requestURL = fmt.Sprintf("%s?api-version=%s", requestURL, meta.Config.APIVersion)
 		task := strings.TrimPrefix(requestURL, "/v1/")
 		model_ := meta.ActualModelName
-		model_ = strings.Replace(model_, ".", "", -1)
-		//https://github.com/songquanpeng/one-api/issues/1191
+		// 保留原始模型名，兼容 Azure deployment 名称如 gpt-4.1
+		//https://github.com/LeXwDeX/one-api/issues/1191
 		// {your endpoint}/openai/deployments/{your azure_model}/chat/completions?api-version={api_version}
 		requestURL = fmt.Sprintf("/openai/deployments/%s/%s", model_, task)
 		return GetFullRequestURL(meta.BaseURL, requestURL, meta.ChannelType), nil
@@ -75,7 +76,7 @@ func (a *Adaptor) SetupRequestHeader(c *gin.Context, req *http.Request, meta *me
 	}
 	req.Header.Set("Authorization", "Bearer "+meta.APIKey)
 	if meta.ChannelType == channeltype.OpenRouter {
-		req.Header.Set("HTTP-Referer", "https://github.com/songquanpeng/one-api")
+		req.Header.Set("HTTP-Referer", "https://github.com/LeXwDeX/one-api")
 		req.Header.Set("X-Title", "One API")
 	}
 	return nil
@@ -92,6 +93,34 @@ func (a *Adaptor) ConvertRequest(c *gin.Context, relayMode int, request *model.G
 		}
 		request.StreamOptions.IncludeUsage = true
 	}
+	// 兼容 temperature，仅对 o3、o3-mini 和 o4-mini 模型强制设为 1
+	if request.Model == "o3" || request.Model == "o3-mini" || request.Model == "o4-mini" {
+		v := 1.0
+		request.Temperature = &v
+	}
+	// 兼容 max_completion_tokens，仅对 o3、o3-mini 和 o4-mini 模型做参数适配
+	if request.Model == "o3" || request.Model == "o3-mini" || request.Model == "o4-mini" {
+		if request.MaxCompletionTokens != nil {
+			// 转为 map 以便动态调整字段
+			m, err := adaptor.StructToMap(request)
+			if err != nil {
+				return nil, err
+			}
+			delete(m, "max_tokens")
+			m["max_completion_tokens"] = *request.MaxCompletionTokens
+			return m, nil
+		}
+		// 自动适配 max_tokens -> max_completion_tokens
+		if request.MaxCompletionTokens == nil && request.MaxTokens != 0 {
+			m, err := adaptor.StructToMap(request)
+			if err != nil {
+				return nil, err
+			}
+			m["max_completion_tokens"] = request.MaxTokens
+			delete(m, "max_tokens")
+			return m, nil
+		}
+	}
 	return request, nil
 }
 
@@ -103,7 +132,26 @@ func (a *Adaptor) ConvertImageRequest(request *model.ImageRequest) (any, error) 
 }
 
 func (a *Adaptor) DoRequest(c *gin.Context, meta *meta.Meta, requestBody io.Reader) (*http.Response, error) {
-	return adaptor.DoRequestHelper(a, c, meta, requestBody)
+	// 记录 meta 信息
+	logger.SysLog(fmt.Sprintf("[DoRequest] meta: %+v", meta))
+	// 记录请求体前 512 字符，防止 base64 刷屏
+	var bodyPreview string
+	if requestBody != nil {
+		buf := make([]byte, 512)
+		n, _ := requestBody.Read(buf)
+		bodyPreview = string(buf[:n])
+		// 由于 Read 会消耗 requestBody，需要重置
+		requestBody = io.MultiReader(strings.NewReader(bodyPreview), requestBody)
+	}
+	logger.SysLog(fmt.Sprintf("[DoRequest] request body preview: %s", bodyPreview))
+	resp, err := adaptor.DoRequestHelper(a, c, meta, requestBody)
+	if resp != nil {
+		logger.SysLog(fmt.Sprintf("[DoRequest] downstream status: %d", resp.StatusCode))
+	}
+	if err != nil {
+		logger.SysError(fmt.Sprintf("[DoRequest] error: %v", err))
+	}
+	return resp, err
 }
 
 func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, meta *meta.Meta) (usage *model.Usage, err *model.ErrorWithStatusCode) {

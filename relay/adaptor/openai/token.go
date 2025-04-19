@@ -8,11 +8,11 @@ import (
 
 	"github.com/pkoukk/tiktoken-go"
 
-	"github.com/songquanpeng/one-api/common/config"
-	"github.com/songquanpeng/one-api/common/image"
-	"github.com/songquanpeng/one-api/common/logger"
-	billingratio "github.com/songquanpeng/one-api/relay/billing/ratio"
-	"github.com/songquanpeng/one-api/relay/model"
+	"github.com/LeXwDeX/one-api/common/config"
+	"github.com/LeXwDeX/one-api/common/image"
+	"github.com/LeXwDeX/one-api/common/logger"
+	billingratio "github.com/LeXwDeX/one-api/relay/billing/ratio"
+	"github.com/LeXwDeX/one-api/relay/model"
 )
 
 // tokenEncoderMap won't grow after initialization
@@ -67,7 +67,12 @@ func getTokenEncoder(model string) *tiktoken.Tiktoken {
 }
 
 func getTokenNum(tokenEncoder *tiktoken.Tiktoken, text string) int {
+	// 对多模态模型直接用近似算法，避免 encoder 出错
 	if config.ApproximateTokenEnabled {
+		return int(float64(len(text)) * 0.38)
+	}
+	// 多模态模型前缀判断
+	if tokenEncoder == nil {
 		return int(float64(len(text)) * 0.38)
 	}
 	return len(tokenEncoder.Encode(text, nil, nil))

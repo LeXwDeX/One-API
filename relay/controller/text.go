@@ -9,17 +9,17 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"github.com/songquanpeng/one-api/common/config"
-	"github.com/songquanpeng/one-api/common/logger"
-	"github.com/songquanpeng/one-api/relay"
-	"github.com/songquanpeng/one-api/relay/adaptor"
-	"github.com/songquanpeng/one-api/relay/adaptor/openai"
-	"github.com/songquanpeng/one-api/relay/apitype"
-	"github.com/songquanpeng/one-api/relay/billing"
-	billingratio "github.com/songquanpeng/one-api/relay/billing/ratio"
-	"github.com/songquanpeng/one-api/relay/channeltype"
-	"github.com/songquanpeng/one-api/relay/meta"
-	"github.com/songquanpeng/one-api/relay/model"
+	"github.com/LeXwDeX/one-api/common/config"
+	"github.com/LeXwDeX/one-api/common/logger"
+	"github.com/LeXwDeX/one-api/relay"
+	"github.com/LeXwDeX/one-api/relay/adaptor"
+	"github.com/LeXwDeX/one-api/relay/adaptor/openai"
+	"github.com/LeXwDeX/one-api/relay/apitype"
+	"github.com/LeXwDeX/one-api/relay/billing"
+	billingratio "github.com/LeXwDeX/one-api/relay/billing/ratio"
+	"github.com/LeXwDeX/one-api/relay/channeltype"
+	"github.com/LeXwDeX/one-api/relay/meta"
+	"github.com/LeXwDeX/one-api/relay/model"
 )
 
 func RelayTextHelper(c *gin.Context) *model.ErrorWithStatusCode {

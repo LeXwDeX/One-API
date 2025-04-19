@@ -1,7 +1,7 @@
 package xunfei
 
 import (
-	"github.com/songquanpeng/one-api/relay/model"
+	"github.com/LeXwDeX/one-api/relay/model"
 )
 
 type Message struct {
