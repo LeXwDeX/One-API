@@ -42,6 +42,8 @@ var ModelRatio = map[string]float64{
 	"gpt-4o-2024-05-13":       2.5,   // $0.005 / 1K tokens
 	"gpt-4o-2024-08-06":       1.25,  // $0.0025 / 1K tokens
 	"gpt-4o-2024-11-20":       1.25,  // $0.0025 / 1K tokens
+	"gpt-4.1-nano":            0.075, // 参考 gpt-4o-mini
+	"gpt-4.1-mini":            1.25,  // 参考 gpt-4o-2024-11-20
 	"gpt-4o-mini":             0.075, // $0.00015 / 1K tokens
 	"gpt-4o-mini-2024-07-18":  0.075, // $0.00015 / 1K tokens
 	"gpt-4-vision-preview":    5,     // $0.01 / 1K tokens
