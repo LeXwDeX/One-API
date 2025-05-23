@@ -12,4 +12,6 @@ var ModelList = []string{
 	"whisper",
 	"tts",
 	"tts-hd",
+	"model-router",
+	"gpt-image-1",
 }
