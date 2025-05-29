@@ -9,6 +9,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	"github.com/LeXwDeX/one-api/common/logger"
 	"github.com/LeXwDeX/one-api/relay/adaptor"
 	"github.com/LeXwDeX/one-api/relay/adaptor/alibailian"
 	"github.com/LeXwDeX/one-api/relay/adaptor/baiduv2"
@@ -20,7 +21,6 @@ import (
 	"github.com/LeXwDeX/one-api/relay/meta"
 	"github.com/LeXwDeX/one-api/relay/model"
 	"github.com/LeXwDeX/one-api/relay/relaymode"
-	"github.com/LeXwDeX/one-api/common/logger"
 )
 
 type Adaptor struct {
@@ -108,6 +108,10 @@ func (a *Adaptor) ConvertRequest(c *gin.Context, relayMode int, request *model.G
 			}
 			delete(m, "max_tokens")
 			m["max_completion_tokens"] = *request.MaxCompletionTokens
+			// add reasoning_effort for o4-mini model
+			if request.ReasoningEffort == nil {
+				m["reasoning_effort"] = "high"
+			}
 			return m, nil
 		}
 		// 自动适配 max_tokens -> max_completion_tokens
@@ -118,7 +122,18 @@ func (a *Adaptor) ConvertRequest(c *gin.Context, relayMode int, request *model.G
 			}
 			m["max_completion_tokens"] = request.MaxTokens
 			delete(m, "max_tokens")
+			// add reasoning_effort for o4-mini model
+			if request.ReasoningEffort == nil {
+				m["reasoning_effort"] = "high"
+			}
 			return m, nil
+		}
+	}
+	// add reasoning_effort for o4-mini model
+	if request.Model == "o4-mini" {
+		if request.ReasoningEffort == nil {
+			s := "high"
+			request.ReasoningEffort = &s
 		}
 	}
 	return request, nil

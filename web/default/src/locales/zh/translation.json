@@ -97,7 +97,6 @@
       "name_placeholder": "请输入名称",
       "group": "分组",
       "group_placeholder": "请选择可以使用该渠道的分组",
-      "group_addition": "请在系统设置页面编辑分组倍率以添加新的分组：",
       "models": "模型",
       "models_placeholder": "请选择该渠道所支持的模型",
       "model_mapping": "模型重定向",
@@ -614,24 +613,6 @@
         "invitee_reward_placeholder": "例如：1000",
         "buttons": {
           "save": "保存额度设置"
-        }
-      },
-      "ratio": {
-        "title": "倍率设置",
-        "model": {
-          "title": "模型倍率",
-          "placeholder": "为一个 JSON 文本，键为模型名称，值为倍率"
-        },
-        "completion": {
-          "title": "补全倍率",
-          "placeholder": "为一个 JSON 文本，键为模型名称，值为倍率，此处的倍率设置是模型补全倍率相较于提示倍率的比例，使用该设置可强制覆盖 One API 的内部比例"
-        },
-        "group": {
-          "title": "分组倍率",
-          "placeholder": "为一个 JSON 文本，键为分组名称，值为倍率"
-        },
-        "buttons": {
-          "save": "保存倍率设置"
         }
       },
       "log": {
