@@ -93,49 +93,53 @@ func (a *Adaptor) ConvertRequest(c *gin.Context, relayMode int, request *model.G
 		}
 		request.StreamOptions.IncludeUsage = true
 	}
-	// 兼容 temperature，仅对 o3、o3-mini 和 o4-mini 模型强制设为 1
-	if request.Model == "o3" || request.Model == "o3-mini" || request.Model == "o4-mini" {
-		v := 1.0
-		request.Temperature = &v
-	}
-	// 兼容 max_completion_tokens，仅对 o3、o3-mini 和 o4-mini 模型做参数适配
-	if request.Model == "o3" || request.Model == "o3-mini" || request.Model == "o4-mini" {
-		if request.MaxCompletionTokens != nil {
-			// 转为 map 以便动态调整字段
-			m, err := adaptor.StructToMap(request)
-			if err != nil {
-				return nil, err
+	// ======= 以下代码已被注释，原为 o3、o3-mini、o4-mini 相关特殊处理 =======
+	/*
+		// 兼容 temperature，仅对 o3、o3-mini 和 o4-mini 模型强制设为 1
+		if request.Model == "o3" || request.Model == "o3-mini" || request.Model == "o4-mini" {
+			v := 1.0
+			request.Temperature = &v
+		}
+		// 兼容 max_completion_tokens，仅对 o3、o3-mini 和 o4-mini 模型做参数适配
+		if request.Model == "o3" || request.Model == "o3-mini" || request.Model == "o4-mini" {
+			if request.MaxCompletionTokens != nil {
+				// 转为 map 以便动态调整字段
+				m, err := adaptor.StructToMap(request)
+				if err != nil {
+					return nil, err
+				}
+				delete(m, "max_tokens")
+				m["max_completion_tokens"] = *request.MaxCompletionTokens
+				// add reasoning_effort for o4-mini model
+				if request.ReasoningEffort == nil {
+					m["reasoning_effort"] = "high"
+				}
+				return m, nil
 			}
-			delete(m, "max_tokens")
-			m["max_completion_tokens"] = *request.MaxCompletionTokens
-			// add reasoning_effort for o4-mini model
+			// 自动适配 max_tokens -> max_completion_tokens
+			if request.MaxCompletionTokens == nil && request.MaxTokens != 0 {
+				m, err := adaptor.StructToMap(request)
+				if err != nil {
+					return nil, err
+				}
+				m["max_completion_tokens"] = request.MaxTokens
+				delete(m, "max_tokens")
+				// add reasoning_effort for o4-mini model
+				if request.ReasoningEffort == nil {
+					m["reasoning_effort"] = "high"
+				}
+				return m, nil
+			}
+		}
+		// add reasoning_effort for o4-mini model
+		if request.Model == "o4-mini" {
 			if request.ReasoningEffort == nil {
-				m["reasoning_effort"] = "high"
+				s := "high"
+				request.ReasoningEffort = &s
 			}
-			return m, nil
 		}
-		// 自动适配 max_tokens -> max_completion_tokens
-		if request.MaxCompletionTokens == nil && request.MaxTokens != 0 {
-			m, err := adaptor.StructToMap(request)
-			if err != nil {
-				return nil, err
-			}
-			m["max_completion_tokens"] = request.MaxTokens
-			delete(m, "max_tokens")
-			// add reasoning_effort for o4-mini model
-			if request.ReasoningEffort == nil {
-				m["reasoning_effort"] = "high"
-			}
-			return m, nil
-		}
-	}
-	// add reasoning_effort for o4-mini model
-	if request.Model == "o4-mini" {
-		if request.ReasoningEffort == nil {
-			s := "high"
-			request.ReasoningEffort = &s
-		}
-	}
+	*/
+	// ======= o3、o4 相关特殊处理已全部注释 =======
 	return request, nil
 }
 
