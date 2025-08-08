@@ -106,6 +106,9 @@ func (a *Adaptor) ConvertRequest(c *gin.Context, relayMode int, request *model.G
 		if request.Verbosity == "" {
 			request.Verbosity = "high"
 		}
+		// temperature 强制为 1
+		one := 1.0
+		request.Temperature = &one
 		// snapshots 字段不做处理
 	}
 
