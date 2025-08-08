@@ -21,12 +21,18 @@ type StreamOptions struct {
 	IncludeUsage bool `json:"include_usage,omitempty"`
 }
 
+type Reasoning struct {
+	Effort string `json:"effort,omitempty"`
+}
+
 type GeneralOpenAIRequest struct {
 	// https://platform.openai.com/docs/api-reference/chat/create
 	Messages            []Message       `json:"messages,omitempty"`
 	Model               string          `json:"model,omitempty"`
 	Store               *bool           `json:"store,omitempty"`
 	ReasoningEffort     *string         `json:"reasoning_effort,omitempty"`
+	Reasoning           *Reasoning      `json:"reasoning,omitempty"`
+	Verbosity           string          `json:"verbosity,omitempty"`
 	Metadata            any             `json:"metadata,omitempty"`
 	FrequencyPenalty    *float64        `json:"frequency_penalty,omitempty"`
 	LogitBias           any             `json:"logit_bias,omitempty"`

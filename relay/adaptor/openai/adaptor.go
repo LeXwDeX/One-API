@@ -93,6 +93,22 @@ func (a *Adaptor) ConvertRequest(c *gin.Context, relayMode int, request *model.G
 		}
 		request.StreamOptions.IncludeUsage = true
 	}
+
+	// 针对 gpt-5 系列模型和 /v1/responses2 路径，补全字段
+	if relayMode == relaymode.Responses2 && strings.HasPrefix(request.Model, "gpt-5") {
+		// reasoning.effort
+		if request.Reasoning == nil {
+			request.Reasoning = &model.Reasoning{Effort: "high"}
+		} else if request.Reasoning.Effort == "" {
+			request.Reasoning.Effort = "high"
+		}
+		// verbosity
+		if request.Verbosity == "" {
+			request.Verbosity = "high"
+		}
+		// snapshots 字段不做处理
+	}
+
 	// ======= 以下代码已被注释，原为 o3、o3-mini、o4-mini 相关特殊处理 =======
 	/*
 		// 兼容 temperature，仅对 o3、o3-mini 和 o4-mini 模型强制设为 1

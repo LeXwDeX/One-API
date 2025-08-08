@@ -4,7 +4,9 @@ import "strings"
 
 func GetByPath(path string) int {
 	relayMode := Unknown
-	if strings.HasPrefix(path, "/v1/chat/completions") {
+	if strings.HasPrefix(path, "/v1/responses2") {
+		relayMode = Responses2
+	} else if strings.HasPrefix(path, "/v1/chat/completions") {
 		relayMode = ChatCompletions
 	} else if strings.HasPrefix(path, "/v1/completions") {
 		relayMode = Completions
