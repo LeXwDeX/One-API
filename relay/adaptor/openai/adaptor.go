@@ -159,6 +159,13 @@ func (a *Adaptor) ConvertRequest(c *gin.Context, relayMode int, request *model.G
 		}
 	*/
 	// ======= o3、o4 相关特殊处理已全部注释 =======
+
+	// 对所有 gpt-5 系列模型强制将 temperature 设为 1
+	if strings.HasPrefix(request.Model, "gpt-5") {
+		one := 1.0
+		request.Temperature = &one
+	}
+
 	return request, nil
 }
 
