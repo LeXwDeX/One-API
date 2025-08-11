@@ -140,11 +140,14 @@ func (a *Adaptor) ConvertRequest(c *gin.Context, relayMode int, request *model.G
 		}
 	*/
 	// ======= o3、o4 相关特殊处理已全部注释 =======
+	// 日志：gpt-5 兼容逻辑前后打印
+	logger.SysLog(fmt.Sprintf("[ConvertRequest] model=%s before temp=%v", request.Model, request.Temperature))
 	// 请求的是 gpt-5 系列模型时，强制将温度设置为1
 	if strings.Contains(strings.ToLower(request.Model), "gpt-5") {
 		v := 1.0
 		request.Temperature = &v
 	}
+	logger.SysLog(fmt.Sprintf("[ConvertRequest] model=%s after temp=%v", request.Model, request.Temperature))
 	// TODO: 在此处继续添加其他系列兼容逻辑
 	return request, nil
 }
