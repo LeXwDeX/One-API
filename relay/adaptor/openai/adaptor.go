@@ -151,11 +151,6 @@ func (a *Adaptor) ConvertRequest(c *gin.Context, relayMode int, request *model.G
 			request.ReasoningEffort = &s
 			logger.SysLog("[ConvertRequest][gpt-5] default reasoning_effort=high")
 		}
-		if request.TextVerbosity == nil {
-			t := "high"
-			request.TextVerbosity = &t
-			logger.SysLog("[ConvertRequest][gpt-5] default text_verbosity=high")
-		}
 		// max_completion_tokens 兼容逻辑（优先保留 max_completion_tokens）
 		if request.MaxCompletionTokens == nil && request.MaxTokens != 0 {
 			mct := request.MaxTokens
