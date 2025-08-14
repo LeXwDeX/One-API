@@ -149,18 +149,31 @@ func (a *Adaptor) ConvertRequest(c *gin.Context, relayMode int, request *model.G
 		if request.ReasoningEffort == nil {
 			s := "high"
 			request.ReasoningEffort = &s
+			logger.SysLog("[ConvertRequest][gpt-5] default reasoning_effort=high")
 		}
 		if request.TextVerbosity == nil {
 			t := "high"
 			request.TextVerbosity = &t
+			logger.SysLog("[ConvertRequest][gpt-5] default text_verbosity=high")
 		}
-		// max_completion_tokens 兼容逻辑
-		if request.MaxCompletionTokens == nil {
-			if request.MaxTokens != 0 {
-				mct := request.MaxTokens
-				request.MaxCompletionTokens = &mct
-			}
+		// max_completion_tokens 兼容逻辑（优先保留 max_completion_tokens）
+		if request.MaxCompletionTokens == nil && request.MaxTokens != 0 {
+			mct := request.MaxTokens
+			request.MaxCompletionTokens = &mct
+			logger.SysLog(fmt.Sprintf("[ConvertRequest][gpt-5] mapped max_tokens=%d -> max_completion_tokens=%d", mct, mct))
+		} else if request.MaxCompletionTokens != nil && request.MaxTokens != 0 {
+			logger.SysLog(fmt.Sprintf("[ConvertRequest][gpt-5] both provided: max_completion_tokens=%d, max_tokens=%d; keeping max_completion_tokens and dropping max_tokens", *request.MaxCompletionTokens, request.MaxTokens))
+		}
+		// 始终清零旧字段，避免下游出现 max_tokens
+		if request.MaxTokens != 0 {
+			logger.SysLog(fmt.Sprintf("[ConvertRequest][gpt-5] dropping legacy max_tokens=%d", request.MaxTokens))
 			request.MaxTokens = 0
+		}
+		// 最终核对信息
+		if request.MaxCompletionTokens != nil {
+			logger.SysLog(fmt.Sprintf("[ConvertRequest][gpt-5] final max_completion_tokens=%d", *request.MaxCompletionTokens))
+		} else {
+			logger.SysLog("[ConvertRequest][gpt-5] final max_completion_tokens=nil")
 		}
 	}
 	logger.SysLog(fmt.Sprintf("[ConvertRequest] model=%s after temp=%v", request.Model, request.Temperature))
