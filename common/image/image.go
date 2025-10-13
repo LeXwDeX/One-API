@@ -3,15 +3,15 @@ package image
 import (
 	"bytes"
 	"encoding/base64"
-	"github.com/LeXwDeX/one-api/common/client"
 	"image"
 	_ "image/gif"
 	_ "image/jpeg"
 	_ "image/png"
-	"net/http"
 	"regexp"
 	"strings"
 	"sync"
+
+	"github.com/LeXwDeX/one-api/common/client"
 
 	_ "golang.org/x/image/webp"
 )
@@ -61,7 +61,7 @@ func GetImageFromUrl(url string) (mimeType string, data string, err error) {
 	if !isImage {
 		return
 	}
-	resp, err := http.Get(url)
+	resp, err := client.UserContentRequestHTTPClient.Get(url)
 	if err != nil {
 		return
 	}

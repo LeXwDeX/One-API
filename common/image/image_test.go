@@ -2,17 +2,16 @@ package image_test
 
 import (
 	"encoding/base64"
-	"github.com/LeXwDeX/one-api/common/client"
 	"image"
 	_ "image/gif"
 	_ "image/jpeg"
 	_ "image/png"
 	"io"
-	"net/http"
 	"strconv"
 	"strings"
 	"testing"
 
+	"github.com/LeXwDeX/one-api/common/client"
 	img "github.com/LeXwDeX/one-api/common/image"
 
 	"github.com/stretchr/testify/assert"
@@ -59,7 +58,7 @@ func TestDecode(t *testing.T) {
 	// jpeg#01: 32805
 	for _, c := range cases {
 		t.Run("Decode:"+c.format, func(t *testing.T) {
-			resp, err := http.Get(c.url)
+			resp, err := client.UserContentRequestHTTPClient.Get(c.url)
 			assert.NoError(t, err)
 			defer resp.Body.Close()
 			reader := &CountingReader{reader: resp.Body}
@@ -81,7 +80,7 @@ func TestDecode(t *testing.T) {
 	// jpeg#01: 4096
 	for _, c := range cases {
 		t.Run("DecodeConfig:"+c.format, func(t *testing.T) {
-			resp, err := http.Get(c.url)
+			resp, err := client.UserContentRequestHTTPClient.Get(c.url)
 			assert.NoError(t, err)
 			defer resp.Body.Close()
 			reader := &CountingReader{reader: resp.Body}
@@ -104,7 +103,7 @@ func TestBase64(t *testing.T) {
 	// jpeg#01: 32805
 	for _, c := range cases {
 		t.Run("Decode:"+c.format, func(t *testing.T) {
-			resp, err := http.Get(c.url)
+			resp, err := client.UserContentRequestHTTPClient.Get(c.url)
 			assert.NoError(t, err)
 			defer resp.Body.Close()
 			data, err := io.ReadAll(resp.Body)
@@ -130,7 +129,7 @@ func TestBase64(t *testing.T) {
 	// jpeg#01: 3840
 	for _, c := range cases {
 		t.Run("DecodeConfig:"+c.format, func(t *testing.T) {
-			resp, err := http.Get(c.url)
+			resp, err := client.UserContentRequestHTTPClient.Get(c.url)
 			assert.NoError(t, err)
 			defer resp.Body.Close()
 			data, err := io.ReadAll(resp.Body)
@@ -162,7 +161,7 @@ func TestGetImageSize(t *testing.T) {
 func TestGetImageSizeFromBase64(t *testing.T) {
 	for i, c := range cases {
 		t.Run("Decode:"+strconv.Itoa(i), func(t *testing.T) {
-			resp, err := http.Get(c.url)
+			resp, err := client.UserContentRequestHTTPClient.Get(c.url)
 			assert.NoError(t, err)
 			defer resp.Body.Close()
 			data, err := io.ReadAll(resp.Body)
