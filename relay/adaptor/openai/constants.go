@@ -1,9 +1,6 @@
 package openai
 
 var ModelList = []string{
-	"gpt-4.1",
-	"gpt-4.1-nano",
-	"gpt-4.1-mini",
 	"o1",
 	"o1-mini",
 	"o3",
@@ -18,4 +15,5 @@ var ModelList = []string{
 	"gpt-5-mini",
 	"gpt-5-nano",
 	"gpt-5-chat",
+	"gpt-5-codex",
 }
