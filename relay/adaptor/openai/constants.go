@@ -16,4 +16,5 @@ var ModelList = []string{
 	"gpt-5-nano",
 	"gpt-5-chat",
 	"gpt-5-codex",
+	"gpt-5-pro",
 }
