@@ -1,0 +1,259 @@
+已访问并提炼核心要点。下面给你一份“直观可落地”的改造指南，帮你把现有请求迁移到 Azure OpenAI 的全新 Responses API。
+
+一、核心变化概览
+- API 形态：Responses API 是“有状态”统一接口，融合了聊天完成与 Assistants 的功能，支持多步对话、工具调用、文件/图像输入等。
+- 基础地址：统一使用 base_url = https://YOUR-RESOURCE-NAME.openai.azure.com/openai/v1/
+- 身份认证：两种方式
+  - API Key：请求头 api-key: $AZURE_OPENAI_API_KEY
+  - Microsoft Entra ID（推荐企业生产）：Authorization: Bearer $AZURE_OPENAI_AUTH_TOKEN
+- 模型字段：model 传你的“部署名”（deployment name），不是随手写 SKU 名。示例里写 gpt-4.1 等，注释也说明请替换为你的部署名。
+- 输入格式：不再用 messages（chat completions 的样式），改用 input 字段
+  - 简单场景可以直接传字符串
+  - 复杂场景使用结构化数组：[{role, content:[{type, ...}]}]
+- 响应结构：不再用 choices，改为 output 数组；并提供便捷字段 output_text。
+- 流式：返回的是事件流，事件类型例如 response.output_text.delta。
+- 有状态对话：通过 previous_response_id 链接上下文，无需重复传前文。
+- 工具与高级能力：function 调用、代码解释器、PDF/图像输入、MCP 远程工具、后台长任务等。
+
+二、从“旧版 Chat Completions”到“Responses API”的对照与改造
+1) Python SDK（旧）到（新）
+旧（Chat Completions 示例）
+```python
+import os
+import openai
+
+openai.api_type = "azure"
+openai.api_base = f"https://YOUR-RESOURCE-NAME.openai.azure.com/"
+openai.api_version = "2024-02-01"  # 示例版本
+openai.api_key = os.getenv("AZURE_OPENAI_API_KEY")
+
+resp = openai.ChatCompletion.create(
+    engine="my-gpt4o-deploy",  # 你的部署名
+    messages=[{"role": "user", "content": "Hello"}],
+    stream=True
+)
+for chunk in resp:
+    print(chunk)  # 旧流式处理
+```
+
+新（Responses API，Python SDK）
+```python
+import os
+from openai import OpenAI
+
+client = OpenAI(
+    api_key=os.getenv("AZURE_OPENAI_API_KEY"),
+    base_url="https://YOUR-RESOURCE-NAME.openai.azure.com/openai/v1/",
+)
+
+# 简单输入（字符串）
+response = client.responses.create(
+    model="my-gpt4o-deploy",  # 用你的部署名
+    input="Hello",
+    stream=True
+)
+
+for event in response:
+    if event.type == "response.output_text.delta":
+        print(event.delta, end="")
+```
+
+结构化输入（更接近复杂对话/多模态）
+```python
+response = client.responses.create(
+    model="my-gpt4o-deploy",
+    input=[
+        {
+            "role": "user",
+            "content": [
+                {"type": "input_text", "text": "Explain transformers briefly."}
+            ]
+        }
+    ],
+)
+print(response.output_text)
+```
+
+2) REST（旧）到（新）
+旧（Chat Completions）
+- POST https://YOUR-RESOURCE-NAME.openai.azure.com/openai/deployments/{DEPLOYMENT}/chat/completions?api-version=...
+- Body 用 messages
+
+新（Responses）
+```bash
+curl -X POST https://YOUR-RESOURCE-NAME.openai.azure.com/openai/v1/responses \
+  -H "Content-Type: application/json" \
+  -H "api-key: $AZURE_OPENAI_API_KEY" \
+  -d '{
+    "model": "my-gpt4o-deploy",
+    "input": "Hello",
+    "stream": true
+}'
+```
+
+三、常用能力速查
+- 获取/删除响应
+```python
+# Retrieve
+resp = client.responses.retrieve("resp_XXXXXXXX")
+
+# Delete (30天默认保留；需要主动删除)
+client.responses.delete("resp_XXXXXXXX")
+```
+
+- 关联上下文（真正的“有状态”）
+```python
+first = client.responses.create(model="my-gpt4o-deploy", input="What is RAG?")
+second = client.responses.create(
+    model="my-gpt4o-deploy",
+    previous_response_id=first.id,
+    input=[{"role": "user", "content": "Explain for a freshman."}]
+)
+print(second.output_text)
+```
+
+- 函数调用（工具调用）
+```python
+response = client.responses.create(
+    model="my-gpt4o-deploy",
+    tools=[{
+        "type": "function",
+        "name": "get_weather",
+        "description": "Get the weather for a location",
+        "parameters": {
+          "type": "object",
+          "properties": {"location": {"type": "string"}},
+          "required": ["location"]
+        }
+    }],
+    input=[{"role": "user", "content": "What's the weather in San Francisco?"}]
+)
+
+# 读取函数调用并回填结果
+input_items = []
+for output in response.output:
+    if output.type == "function_call" and output.name == "get_weather":
+        input_items.append({
+            "type": "function_call_output",
+            "call_id": output.call_id,
+            "output": '{"temperature":"70 degrees"}'
+        })
+
+second = client.responses.create(
+    model="my-gpt4o-deploy",
+    previous_response_id=response.id,
+    input=input_items
+)
+print(second.output_text)
+```
+
+- 流式输出（事件流）
+```python
+response = client.responses.create(
+    model="my-gpt4o-deploy",
+    input="Stream a short answer.",
+    stream=True
+)
+for event in response:
+    if event.type == "response.output_text.delta":
+        print(event.delta, end="")
+```
+
+- PDF/图像输入（视觉模型）
+Base64 PDF：
+```python
+import base64, os
+from openai import OpenAI
+
+client = OpenAI(
+    api_key=os.getenv("AZURE_OPENAI_API_KEY"),
+    base_url="https://YOUR-RESOURCE-NAME.openai.azure.com/openai/v1/",
+)
+
+with open("doc.pdf", "rb") as f:
+    b64 = base64.b64encode(f.read()).decode("utf-8")
+
+resp = client.responses.create(
+  model="my-gpt4o-mini-deploy",
+  input=[{
+    "role": "user",
+    "content": [
+      {"type": "input_file", "filename": "doc.pdf", "file_data": f"data:application/pdf;base64,{b64}"},
+      {"type": "input_text", "text": "Summarize this PDF"}
+    ]
+  }]
+)
+print(resp.output_text)
+```
+
+通过文件 ID（需 purpose="assistants" 上传，暂不支持 user_data）：
+```python
+file = client.files.create(file=open("doc.pdf", "rb"), purpose="assistants")
+resp = client.responses.create(
+  model="my-gpt4o-mini-deploy",
+  input=[{
+    "role": "user",
+    "content": [
+      {"type": "input_file", "file_id": file.id},
+      {"type": "input_text", "text": "Summarize this PDF"}
+    ]
+  }]
+)
+print(resp.output_text)
+```
+
+- 代码解释器（沙盒 Python，注意额外费用与可能需要 preview 版本）
+```python
+resp = client.responses.create(
+  model="my-gpt-4.1-deploy",
+  tools=[{"type":"code_interpreter","container":{"type":"auto"}}],
+  instructions="You are a math tutor. Use python tool to solve questions.",
+  input="Solve 3x + 11 = 14."
+)
+print(resp.output)
+```
+提示：部分场景要在请求头或查询里加 api_version=preview（文档示例有体现），以启用预览特性。
+
+- 后台长任务（异步）
+```python
+resp = client.responses.create(
+  model="my-o3-deploy",
+  input="Write me a very long story",
+  background=True
+)
+print(resp.status)
+
+# 轮询直到完成
+from time import sleep
+while resp.status in {"queued", "in_progress"}:
+    sleep(2)
+    resp = client.responses.retrieve(resp.id)
+print(resp.output_text)
+```
+
+四、你在改造时最容易踩的坑
+- 模型名 vs 部署名：model 必须是你在 Azure 里创建的“部署名”。不要直接写 SKU 名。
+- base_url 必须以 /openai/v1/ 结尾：与旧版 /deployments/.../chat/completions 完全不同。
+- 认证方式要统一：API Key 与 Entra ID 二选一；不要混用。企业生产优先考虑 Entra ID。
+- 事件流处理不再是旧的 chunk 格式：请按 event.type 判断类型，文本是 response.output_text.delta。
+- PDF 上传的 purpose 暂不支持 user_data：用 purpose="assistants" 作为替代。
+- 部分高级能力（代码解释器、图像工具）可能需要 preview API 版本或额外费用。
+- Web 搜索工具当前不支持；图像生成的多轮编辑与流式在 Responses API 中暂不支持（文档标注“即将推出”）。
+
+五、快速清单：把你现有代码改成 Responses API 的步骤
+- 升级 SDK：pip install --upgrade openai
+- 改 base_url：改为 https://YOUR-RESOURCE-NAME.openai.azure.com/openai/v1/
+- 改调用方法：从 ChatCompletion.create(...) 改为 client.responses.create(...)
+- 改输入：messages -> input；简单可传字符串，复杂用 {role, content:[{type: ...}]}
+- 如需上下文承接：传 previous_response_id
+- 流式：按事件类型处理 response.output_text.delta
+- 工具：tools=[{type:"function" ...}] 或使用 code_interpreter/mcp/image_generation 等
+- 认证：API Key 或 Entra ID，统一好环境变量和请求头
+
+六、需要你提供的信息（我来帮你定制改造）
+- 你当前使用的语言和 SDK 版本（Python/JS/REST？）
+- 现有调用示例（最好粘一个最小化代码片段）
+- 你部署的模型与部署名（例如 my-gpt4o-deploy）
+- 是否需要流式输出、函数调用、PDF/图片输入、代码解释器或后台任务
+
+把上述信息发我，我会给你一版“对照你现状”的精确改造代码。小步切换、测试通过，再逐步启用高级能力。你可以的！

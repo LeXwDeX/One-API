@@ -149,3 +149,125 @@ func Handler(c *gin.Context, resp *http.Response, promptTokens int, modelName st
 	}
 	return nil, &textResponse.Usage
 }
+
+// Azure Responses API 流式与非流式专用处理
+
+// AzureResponsesStreamPassthrough 将 Azure Responses 的 SSE 事件原样透传，并提取 response.output_text.delta 累积文本
+func AzureResponsesStreamPassthrough(c *gin.Context, resp *http.Response) (*model.ErrorWithStatusCode, string, *model.Usage) {
+	responseText := ""
+	var usage *model.Usage
+
+	scanner := bufio.NewScanner(resp.Body)
+	scanner.Split(bufio.ScanLines)
+
+	common.SetEventStreamHeaders(c)
+
+	currentEvent := ""
+	doneRendered := false
+
+	type outputDelta struct {
+		Delta string `json:"delta"`
+	}
+
+	for scanner.Scan() {
+		line := scanner.Text()
+		// 直接透传每一行，保证客户端按 Azure Responses 事件结构解析
+		render.StringData(c, line)
+
+		if line == "" {
+			// 事件块分隔
+			continue
+		}
+
+		if strings.HasPrefix(line, "event:") {
+			currentEvent = strings.TrimSpace(strings.TrimPrefix(line, "event:"))
+			continue
+		}
+
+		if strings.HasPrefix(line, "data:") {
+			data := strings.TrimSpace(strings.TrimPrefix(line, "data:"))
+			// 累积 delta
+			if currentEvent == "response.output_text.delta" {
+				var d outputDelta
+				if err := json.Unmarshal([]byte(data), &d); err == nil && d.Delta != "" {
+					responseText += d.Delta
+				} else {
+					// 如果 data 不为 JSON，尝试去掉首尾引号后累积
+					trimmed := strings.Trim(data, "\"")
+					responseText += trimmed
+				}
+			}
+			// 标记完成事件
+			if currentEvent == "response.completed" || currentEvent == "response.error" {
+				doneRendered = true
+			}
+			continue
+		}
+	}
+
+	if err := scanner.Err(); err != nil {
+		logger.SysError("error reading stream: " + err.Error())
+	}
+
+	if !doneRendered {
+		render.Done(c)
+	}
+
+	if err := resp.Body.Close(); err != nil {
+		return ErrorWrapper(err, "close_response_body_failed", http.StatusInternalServerError), "", nil
+	}
+
+	// Azure Responses 流式通常不返回 usage，留给上层用 ResponseText2Usage 推断
+	return nil, responseText, usage
+}
+
+// AzureResponsesNonStreamHandler 读取非流式响应，转发给客户端，并基于 output_text 计算 usage
+func AzureResponsesNonStreamHandler(c *gin.Context, resp *http.Response, modelName string, promptTokens int) (*model.ErrorWithStatusCode, *model.Usage) {
+	responseBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return ErrorWrapper(err, "read_response_body_failed", http.StatusInternalServerError), nil
+	}
+	if err = resp.Body.Close(); err != nil {
+		return ErrorWrapper(err, "close_response_body_failed", http.StatusInternalServerError), nil
+	}
+
+	// 尝试解析 output_text
+	var outputText string
+	// 既支持根级 output_text，也兼容简单字符串体
+	// 优先尝试 JSON 对象
+	var obj map[string]any
+	if json.Unmarshal(responseBody, &obj) == nil {
+		if v, ok := obj["output_text"]; ok {
+			switch vv := v.(type) {
+			case string:
+				outputText = vv
+			default:
+				// 若不是字符串，尝试转为字符串
+				b, _ := json.Marshal(v)
+				outputText = string(b)
+			}
+		}
+	} else {
+		// 非 JSON，按纯文本处理
+		outputText = string(responseBody)
+	}
+
+	// 重置响应体并原样转发给客户端
+	resp.Body = io.NopCloser(bytes.NewBuffer(responseBody))
+	for k, v := range resp.Header {
+		if len(v) > 0 {
+			c.Writer.Header().Set(k, v[0])
+		}
+	}
+	c.Writer.WriteHeader(resp.StatusCode)
+	if _, err = io.Copy(c.Writer, resp.Body); err != nil {
+		return ErrorWrapper(err, "copy_response_body_failed", http.StatusInternalServerError), nil
+	}
+	if err = resp.Body.Close(); err != nil {
+		return ErrorWrapper(err, "close_response_body_failed", http.StatusInternalServerError), nil
+	}
+
+	// 计算 usage（若服务端未提供）
+	usage := ResponseText2Usage(outputText, modelName, promptTokens)
+	return nil, usage
+}

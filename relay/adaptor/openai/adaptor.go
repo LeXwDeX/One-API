@@ -41,13 +41,18 @@ func (a *Adaptor) GetRequestURL(meta *meta.Meta) (string, error) {
 			return fullRequestURL, nil
 		}
 
-		// https://learn.microsoft.com/en-us/azure/cognitive-services/openai/chatgpt-quickstart?pivots=rest-api&tabs=command-line#rest-api
-		requestURL := strings.Split(meta.RequestURLPath, "?")[0]
-		requestURL = fmt.Sprintf("%s?api-version=%s", requestURL, meta.Config.APIVersion)
+		// https://learn.microsoft.com/en-us/azure/ai-services/openai
+		rawPath := strings.Split(meta.RequestURLPath, "?")[0]
+		if strings.HasPrefix(rawPath, "/v1/responses") {
+			// Azure Responses API: 模型部署名在 body.model，不走 deployments 段
+			requestURL := fmt.Sprintf("/openai/v1/responses?api-version=%s", meta.Config.APIVersion)
+			return GetFullRequestURL(meta.BaseURL, requestURL, meta.ChannelType), nil
+		}
+		requestURL := fmt.Sprintf("%s?api-version=%s", rawPath, meta.Config.APIVersion)
 		task := strings.TrimPrefix(requestURL, "/v1/")
 		model_ := meta.ActualModelName
 		// 保留原始模型名，兼容 Azure deployment 名称如 gpt-4.1
-		//https://github.com/LeXwDeX/one-api/issues/1191
+		// https://github.com/LeXwDeX/one-api/issues/1191
 		// {your endpoint}/openai/deployments/{your azure_model}/chat/completions?api-version={api_version}
 		requestURL = fmt.Sprintf("/openai/deployments/%s/%s", model_, task)
 		return GetFullRequestURL(meta.BaseURL, requestURL, meta.ChannelType), nil
@@ -71,7 +76,14 @@ func (a *Adaptor) GetRequestURL(meta *meta.Meta) (string, error) {
 func (a *Adaptor) SetupRequestHeader(c *gin.Context, req *http.Request, meta *meta.Meta) error {
 	adaptor.SetupCommonRequestHeader(c, req, meta)
 	if meta.ChannelType == channeltype.Azure {
-		req.Header.Set("api-key", meta.APIKey)
+		origAuth := c.Request.Header.Get("Authorization")
+		if strings.HasPrefix(origAuth, "Bearer ") {
+			// Entra ID：透传上游 Authorization 头
+			req.Header.Set("Authorization", origAuth)
+		} else {
+			// API Key 模式
+			req.Header.Set("api-key", meta.APIKey)
+		}
 		return nil
 	}
 	req.Header.Set("Authorization", "Bearer "+meta.APIKey)
@@ -207,22 +219,43 @@ func (a *Adaptor) DoRequest(c *gin.Context, meta *meta.Meta, requestBody io.Read
 }
 
 func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, meta *meta.Meta) (usage *model.Usage, err *model.ErrorWithStatusCode) {
+	rawPath := strings.Split(meta.RequestURLPath, "?")[0]
+
 	if meta.IsStream {
-		var responseText string
-		err, responseText, usage = StreamHandler(c, resp, meta.Mode)
-		if usage == nil || usage.TotalTokens == 0 {
-			usage = ResponseText2Usage(responseText, meta.ActualModelName, meta.PromptTokens)
-		}
-		if usage.TotalTokens != 0 && usage.PromptTokens == 0 { // some channels don't return prompt tokens & completion tokens
-			usage.PromptTokens = meta.PromptTokens
-			usage.CompletionTokens = usage.TotalTokens - meta.PromptTokens
+		if meta.ChannelType == channeltype.Azure && strings.HasPrefix(rawPath, "/v1/responses") {
+			var responseText string
+			var azureUsage *model.Usage
+			err, responseText, azureUsage = AzureResponsesStreamPassthrough(c, resp)
+			if azureUsage != nil && azureUsage.TotalTokens != 0 {
+				usage = azureUsage
+			} else {
+				usage = ResponseText2Usage(responseText, meta.ActualModelName, meta.PromptTokens)
+			}
+			if usage.TotalTokens != 0 && usage.PromptTokens == 0 { // some channels don't return prompt tokens & completion tokens
+				usage.PromptTokens = meta.PromptTokens
+				usage.CompletionTokens = usage.TotalTokens - meta.PromptTokens
+			}
+		} else {
+			var responseText string
+			err, responseText, usage = StreamHandler(c, resp, meta.Mode)
+			if usage == nil || usage.TotalTokens == 0 {
+				usage = ResponseText2Usage(responseText, meta.ActualModelName, meta.PromptTokens)
+			}
+			if usage.TotalTokens != 0 && usage.PromptTokens == 0 { // some channels don't return prompt tokens & completion tokens
+				usage.PromptTokens = meta.PromptTokens
+				usage.CompletionTokens = usage.TotalTokens - meta.PromptTokens
+			}
 		}
 	} else {
-		switch meta.Mode {
-		case relaymode.ImagesGenerations:
-			err, _ = ImageHandler(c, resp)
-		default:
-			err, usage = Handler(c, resp, meta.PromptTokens, meta.ActualModelName)
+		if meta.ChannelType == channeltype.Azure && strings.HasPrefix(rawPath, "/v1/responses") {
+			err, usage = AzureResponsesNonStreamHandler(c, resp, meta.ActualModelName, meta.PromptTokens)
+		} else {
+			switch meta.Mode {
+			case relaymode.ImagesGenerations:
+				err, _ = ImageHandler(c, resp)
+			default:
+				err, usage = Handler(c, resp, meta.PromptTokens, meta.ActualModelName)
+			}
 		}
 	}
 	return
