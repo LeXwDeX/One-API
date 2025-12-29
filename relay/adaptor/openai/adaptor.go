@@ -152,6 +152,17 @@ func (a *Adaptor) ConvertRequest(c *gin.Context, relayMode int, request *model.G
 		}
 	*/
 	// ======= o3、o4 相关特殊处理已全部注释 =======
+	modelLower := strings.ToLower(request.Model)
+	if strings.HasPrefix(modelLower, "gpt-5") {
+		// Normalize legacy max_tokens to max_completion_tokens for GPT-5 series
+		if request.MaxCompletionTokens == nil && request.MaxTokens != 0 {
+			mct := request.MaxTokens
+			request.MaxCompletionTokens = &mct
+		}
+		if request.MaxTokens != 0 {
+			request.MaxTokens = 0
+		}
+	}
 	// 日志：gpt-5 兼容逻辑前后打印
 	// logger.SysLog(fmt.Sprintf("[ConvertRequest] model=%s before temp=%v", request.Model, request.Temperature))
 	// 请求的是 gpt-5 系列模型时，强制将温度设置为1，reasoning_effort/text_verbosity 默认 high

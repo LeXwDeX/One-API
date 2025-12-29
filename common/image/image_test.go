@@ -7,6 +7,10 @@ import (
 	_ "image/jpeg"
 	_ "image/png"
 	"io"
+	"net/http"
+	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"testing"
@@ -15,6 +19,7 @@ import (
 	img "github.com/LeXwDeX/one-api/common/image"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	_ "golang.org/x/image/webp"
 )
 
@@ -29,27 +34,54 @@ func (r *CountingReader) Read(p []byte) (n int, err error) {
 	return n, err
 }
 
-var (
-	cases = []struct {
-		url    string
-		format string
-		width  int
-		height int
-	}{
-		{"https://upload.wikimedia.org/wikipedia/commons/thumb/d/dd/Gfp-wisconsin-madison-the-nature-boardwalk.jpg/2560px-Gfp-wisconsin-madison-the-nature-boardwalk.jpg", "jpeg", 2560, 1669},
-		{"https://upload.wikimedia.org/wikipedia/commons/9/97/Basshunter_live_performances.png", "png", 4500, 2592},
-		{"https://upload.wikimedia.org/wikipedia/commons/c/c6/TO_THE_ONE_SOMETHINGNESS.webp", "webp", 984, 985},
-		{"https://upload.wikimedia.org/wikipedia/commons/d/d0/01_Das_Sandberg-Modell.gif", "gif", 1917, 1533},
-		{"https://upload.wikimedia.org/wikipedia/commons/6/62/102Cervus.jpg", "jpeg", 270, 230},
-	}
-)
+type imageCase struct {
+	name   string
+	url    string
+	format string
+	width  int
+	height int
+	data   []byte
+}
 
 func TestMain(m *testing.M) {
 	client.Init()
 	m.Run()
 }
 
+func setupTestImages(t *testing.T) ([]imageCase, *httptest.Server) {
+	t.Helper()
+	testFiles := []imageCase{
+		{name: "sample.jpeg", format: "jpeg", width: 4, height: 3},
+		{name: "sample.png", format: "png", width: 5, height: 4},
+		{name: "sample.webp", format: "webp", width: 6, height: 5},
+		{name: "sample.gif", format: "gif", width: 7, height: 6},
+	}
+
+	mux := http.NewServeMux()
+	for i := range testFiles {
+		filename := filepath.Join("testdata", testFiles[i].name)
+		data, err := os.ReadFile(filename)
+		require.NoError(t, err, "failed to read test image %s", filename)
+		testFiles[i].data = data
+
+		path := "/" + testFiles[i].name
+		contentType := "image/" + testFiles[i].format
+		mux.HandleFunc(path, func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", contentType)
+			_, _ = w.Write(data)
+		})
+	}
+
+	server := httptest.NewServer(mux)
+	for i := range testFiles {
+		testFiles[i].url = server.URL + "/" + testFiles[i].name
+	}
+	return testFiles, server
+}
+
 func TestDecode(t *testing.T) {
+	cases, server := setupTestImages(t)
+	defer server.Close()
 	// Bytes read: varies sometimes
 	// jpeg: 1063892
 	// png: 294462
@@ -62,9 +94,9 @@ func TestDecode(t *testing.T) {
 			assert.NoError(t, err)
 			defer resp.Body.Close()
 			reader := &CountingReader{reader: resp.Body}
-			img, format, err := image.Decode(reader)
+			decodedImg, format, err := image.Decode(reader)
 			assert.NoError(t, err)
-			size := img.Bounds().Size()
+			size := decodedImg.Bounds().Size()
 			assert.Equal(t, c.format, format)
 			assert.Equal(t, c.width, size.X)
 			assert.Equal(t, c.height, size.Y)
@@ -95,6 +127,8 @@ func TestDecode(t *testing.T) {
 }
 
 func TestBase64(t *testing.T) {
+	cases, server := setupTestImages(t)
+	defer server.Close()
 	// Bytes read:
 	// jpeg: 1063892
 	// png: 294462
@@ -103,17 +137,13 @@ func TestBase64(t *testing.T) {
 	// jpeg#01: 32805
 	for _, c := range cases {
 		t.Run("Decode:"+c.format, func(t *testing.T) {
-			resp, err := client.UserContentRequestHTTPClient.Get(c.url)
-			assert.NoError(t, err)
-			defer resp.Body.Close()
-			data, err := io.ReadAll(resp.Body)
-			assert.NoError(t, err)
+			data := c.data
 			encoded := base64.StdEncoding.EncodeToString(data)
 			body := base64.NewDecoder(base64.StdEncoding, strings.NewReader(encoded))
 			reader := &CountingReader{reader: body}
-			img, format, err := image.Decode(reader)
+			decodedImg, format, err := image.Decode(reader)
 			assert.NoError(t, err)
-			size := img.Bounds().Size()
+			size := decodedImg.Bounds().Size()
 			assert.Equal(t, c.format, format)
 			assert.Equal(t, c.width, size.X)
 			assert.Equal(t, c.height, size.Y)
@@ -129,11 +159,7 @@ func TestBase64(t *testing.T) {
 	// jpeg#01: 3840
 	for _, c := range cases {
 		t.Run("DecodeConfig:"+c.format, func(t *testing.T) {
-			resp, err := client.UserContentRequestHTTPClient.Get(c.url)
-			assert.NoError(t, err)
-			defer resp.Body.Close()
-			data, err := io.ReadAll(resp.Body)
-			assert.NoError(t, err)
+			data := c.data
 			encoded := base64.StdEncoding.EncodeToString(data)
 			body := base64.NewDecoder(base64.StdEncoding, strings.NewReader(encoded))
 			reader := &CountingReader{reader: body}
@@ -148,6 +174,8 @@ func TestBase64(t *testing.T) {
 }
 
 func TestGetImageSize(t *testing.T) {
+	cases, server := setupTestImages(t)
+	defer server.Close()
 	for i, c := range cases {
 		t.Run("Decode:"+strconv.Itoa(i), func(t *testing.T) {
 			width, height, err := img.GetImageSize(c.url)
@@ -159,14 +187,11 @@ func TestGetImageSize(t *testing.T) {
 }
 
 func TestGetImageSizeFromBase64(t *testing.T) {
+	cases, server := setupTestImages(t)
+	defer server.Close()
 	for i, c := range cases {
 		t.Run("Decode:"+strconv.Itoa(i), func(t *testing.T) {
-			resp, err := client.UserContentRequestHTTPClient.Get(c.url)
-			assert.NoError(t, err)
-			defer resp.Body.Close()
-			data, err := io.ReadAll(resp.Body)
-			assert.NoError(t, err)
-			encoded := base64.StdEncoding.EncodeToString(data)
+			encoded := base64.StdEncoding.EncodeToString(c.data)
 			width, height, err := img.GetImageSizeFromBase64(encoded)
 			assert.NoError(t, err)
 			assert.Equal(t, c.width, width)

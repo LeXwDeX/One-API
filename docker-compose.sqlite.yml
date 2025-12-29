@@ -1,0 +1,18 @@
+services:
+  one-api:
+    image: "${ONE_API_IMAGE:-sunsan05/one-api:latest}"
+    container_name: one-api
+    hostname: one-api
+    restart: unless-stopped
+    environment:
+      TZ: Asia/Shanghai
+      DEBUG: "false"
+      PUID: 1000
+      PGID: 1000
+      SESSION_SECRET: change_me
+      TIKTOKEN_CACHE_DIR: /opt/tiktoken-cache
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./data/oneapi:/data
+      - ./data/tiktoken-cache:/opt/tiktoken-cache
